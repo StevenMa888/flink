@@ -46,7 +46,7 @@ The Java Table API is enabled by importing `org.apache.flink.table.api.java.*`. 
 {% highlight java %}
 // environment configuration
 ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
-BatchTableEnvironment tEnv = TableEnvironment.getTableEnvironment(env);
+BatchTableEnvironment tEnv = BatchTableEnvironment.create(env);
 
 // register Orders table in table environment
 // ...
@@ -59,7 +59,7 @@ Table counts = orders
         .select("a, b.count as cnt");
 
 // conversion to DataSet
-DataSet<Row> result = tableEnv.toDataSet(counts, Row.class);
+DataSet<Row> result = tEnv.toDataSet(counts, Row.class);
 result.print();
 {% endhighlight %}
 
@@ -77,7 +77,7 @@ import org.apache.flink.table.api.scala._
 
 // environment configuration
 val env = ExecutionEnvironment.getExecutionEnvironment
-val tEnv = TableEnvironment.getTableEnvironment(env)
+val tEnv = BatchTableEnvironment.create(env)
 
 // register Orders table in table environment
 // ...
@@ -109,7 +109,7 @@ Table orders = tEnv.scan("Orders"); // schema (a, b, c, rowtime)
 
 Table result = orders
         .filter("a.isNotNull && b.isNotNull && c.isNotNull")
-        .select("a.lowerCase(), b, rowtime")
+        .select("a.lowerCase() as a, b, rowtime")
         .window(Tumble.over("1.hour").on("rowtime").as("hourlyWindow"))
         .groupBy("hourlyWindow, a")
         .select("a, hourlyWindow.end as hour, b.avg as avgBillingAmount");
@@ -128,7 +128,7 @@ val orders: Table = tEnv.scan("Orders") // schema (a, b, c, rowtime)
 
 val result: Table = orders
         .filter('a.isNotNull && 'b.isNotNull && 'c.isNotNull)
-        .select('a.lowerCase(), 'b, 'rowtime)
+        .select('a.lowerCase() as 'a, 'b, 'rowtime)
         .window(Tumble over 1.hour on 'rowtime as 'hourlyWindow)
         .groupBy('hourlyWindow, 'a)
         .select('a, 'hourlyWindow.end as 'hour, 'b.avg as 'avgBillingAmount)
@@ -642,7 +642,7 @@ tableEnv.registerFunction("split", split);
 // join
 Table orders = tableEnv.scan("Orders");
 Table result = orders
-    .join(new Table(tableEnv, "split(c)").as("s", "t", "v"))
+    .joinLateral("split(c).as(s, t, v)")
     .select("a, b, s, t, v");
 {% endhighlight %}
       </td>
@@ -663,7 +663,7 @@ tableEnv.registerFunction("split", split);
 // join
 Table orders = tableEnv.scan("Orders");
 Table result = orders
-    .leftOuterJoin(new Table(tableEnv, "split(c)").as("s", "t", "v"))
+    .leftOuterJoinLateral("split(c).as(s, t, v)")
     .select("a, b, s, t, v");
 {% endhighlight %}
       </td>
@@ -691,7 +691,7 @@ tableEnv.registerFunction("rates", rates);
 // join with "Orders" based on the time attribute and key
 Table orders = tableEnv.scan("Orders");
 Table result = orders
-    .join(new Table(tEnv, "rates(o_proctime)"), "o_currency = r_currency")
+    .joinLateral("rates(o_proctime)", "o_currency = r_currency")
 {% endhighlight %}
         <p>For more information please check the more detailed <a href="streaming/temporal_tables.html">temporal tables concept description</a>.</p>
       </td>
@@ -788,7 +788,7 @@ val split: TableFunction[_] = new MySplitUDTF()
 
 // join
 val result: Table = table
-    .join(split('c) as ('s, 't, 'v))
+    .joinLateral(split('c) as ('s, 't, 'v))
     .select('a, 'b, 's, 't, 'v)
 {% endhighlight %}
         </td>
@@ -806,7 +806,7 @@ val split: TableFunction[_] = new MySplitUDTF()
 
 // join
 val result: Table = table
-    .leftOuterJoin(split('c) as ('s, 't, 'v))
+    .leftOuterJoinLateral(split('c) as ('s, 't, 'v))
     .select('a, 'b, 's, 't, 'v)
 {% endhighlight %}
       </td>
@@ -1728,7 +1728,7 @@ This is the EBNF grammar for expressions:
 
 expressionList = expression , { "," , expression } ;
 
-expression = timeIndicator | overConstant | alias ;
+expression = overConstant | alias ;
 
 alias = logic | ( logic , "as" , fieldReference ) | ( logic , "as" , "(" , fieldReference , { "," , fieldReference } , ")" ) ;
 
@@ -1744,7 +1744,7 @@ unary = [ "!" | "-" | "+" ] , composite ;
 
 composite = over | suffixed | nullLiteral | prefixed | atom ;
 
-suffixed = interval | suffixAs | suffixCast | suffixIf | suffixDistinct | suffixFunctionCall ;
+suffixed = interval | suffixAs | suffixCast | suffixIf | suffixDistinct | suffixFunctionCall | timeIndicator ;
 
 prefixed = prefixAs | prefixCast | prefixIf | prefixDistinct | prefixFunctionCall ;
 

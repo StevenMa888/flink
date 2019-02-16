@@ -91,7 +91,7 @@ For most users, the `FlinkKafkaConsumer08` (part of `flink-connector-kafka`) is 
         The version of the client it uses may change between Flink releases.
         Modern Kafka clients are backwards compatible with broker versions 0.10.0 or later.
         However for Kafka 0.11.x and 0.10.x versions, we recommend using dedicated
-        flink-connector-kafka-0.11{{ site.scala_version_suffix }} and link-connector-kafka-0.10{{ site.scala_version_suffix }} respectively.
+        flink-connector-kafka-0.11{{ site.scala_version_suffix }} and flink-connector-kafka-0.10{{ site.scala_version_suffix }} respectively.
         <div class="alert alert-warning">
           <strong>Attention:</strong> as of Flink 1.7 the universal Kafka connector is considered to be
           in a <strong>BETA</strong> status and might not be as stable as the 0.11 connector.
@@ -205,7 +205,7 @@ produced Java/Scala type to Flink's type system. Users that implement a vanilla 
 to implement the `getProducedType(...)` method themselves.
 
 For accessing both the key and value of the Kafka message, the `KeyedDeserializationSchema` has
-the following deserialize method ` T deserialize(byte[] messageKey, byte[] message, String topic, int partition, long offset)`.
+the following deserialize method `T deserialize(byte[] messageKey, byte[] message, String topic, int partition, long offset)`.
 
 For convenience, Flink provides the following schemas:
 
@@ -214,7 +214,7 @@ For convenience, Flink provides the following schemas:
     This schema is a performant Flink-specific alternative to other generic serialization approaches.
 
 2. `JsonDeserializationSchema` (and `JSONKeyValueDeserializationSchema`) which turns the serialized JSON
-    into an ObjectNode object, from which fields can be accessed using objectNode.get("field").as(Int/String/...)().
+    into an ObjectNode object, from which fields can be accessed using `objectNode.get("field").as(Int/String/...)()`.
     The KeyValue objectNode contains a "key" and "value" field which contain all fields, as well as
     an optional "metadata" field that exposes the offset/partition/topic for this message.
     
@@ -547,7 +547,7 @@ In the meanwhile, a possible workaround is to send *heartbeat messages* to all c
 
 ## Kafka Producer
 
-Flink’s Kafka Producer is called `FlinkKafkaProducer011` (or `010` for Kafka 0.10.0.x versions, etc. or just `FlinkKafkaConsumer` for Kafka >= 1.0.0 versions).
+Flink’s Kafka Producer is called `FlinkKafkaProducer011` (or `010` for Kafka 0.10.0.x versions, etc. or just `FlinkKafkaProducer` for Kafka >= 1.0.0 versions).
 It allows writing a stream of records to one or more Kafka topics.
 
 Example:
@@ -660,19 +660,6 @@ we recommend setting the number of retries to a higher value.
 **Note**: There is currently no transactional producer for Kafka, so Flink can not guarantee exactly-once delivery
 into a Kafka topic.
 
-<div class="alert alert-warning">
-  <strong>Attention:</strong> Depending on your Kafka configuration, even after Kafka acknowledges
-  writes you can still experience data loss. In particular keep in mind the following Kafka settings:
-  <ul>
-    <li><tt>acks</tt></li>
-    <li><tt>log.flush.interval.messages</tt></li>
-    <li><tt>log.flush.interval.ms</tt></li>
-    <li><tt>log.flush.*</tt></li>
-  </ul>
-  Default values for the above options can easily lead to data loss. Please refer to Kafka documentation
-  for more explanation.
-</div>
-
 #### Kafka 0.11 and newer
 
 With Flink's checkpointing enabled, the `FlinkKafkaProducer011` (`FlinkKafkaProducer` for Kafka >= 1.0.0 versions) can provide
@@ -689,21 +676,6 @@ chosen by passing appropriate `semantic` parameter to the `FlinkKafkaProducer011
  to Kafka using transactions, do not forget about setting desired `isolation.level` (`read_committed`
  or `read_uncommitted` - the latter one is the default value) for any application consuming records
  from Kafka.
-
-<div class="alert alert-warning">
-  <strong>Attention:</strong> Depending on your Kafka configuration, even after Kafka acknowledges
-  writes you can still experience data losses. In particular keep in mind about following properties
-  in Kafka config:
-  <ul>
-    <li><tt>acks</tt></li>
-    <li><tt>log.flush.interval.messages</tt></li>
-    <li><tt>log.flush.interval.ms</tt></li>
-    <li><tt>log.flush.*</tt></li>
-  </ul>
-  Default values for the above options can easily lead to data loss. Please refer to the Kafka documentation
-  for more explanation.
-</div>
-
 
 ##### Caveats
 
@@ -830,5 +802,39 @@ A mismatch in service name between client and server configuration will cause th
 
 For more information on Flink configuration for Kerberos security, please see [here]({{ site.baseurl}}/ops/config.html).
 You can also find [here]({{ site.baseurl}}/ops/security-kerberos.html) further details on how Flink internally setups Kerberos-based security.
+
+## Troubleshooting
+
+<div class="alert alert-warning">
+If you have a problem with Kafka when using Flink, keep in mind that Flink only wraps
+<a href="https://kafka.apache.org/documentation/#consumerapi">KafkaConsumer</a> or
+<a href="https://kafka.apache.org/documentation/#producerapi">KafkaProducer</a>
+and your problem might be independent of Flink and sometimes can be solved by upgrading Kafka brokers,
+reconfiguring Kafka brokers or reconfiguring <tt>KafkaConsumer</tt> or <tt>KafkaProducer</tt> in Flink.
+Some examples of common problems are listed below.
+</div>
+
+### Data loss
+
+Depending on your Kafka configuration, even after Kafka acknowledges
+writes you can still experience data loss. In particular keep in mind about the following properties
+in Kafka config:
+
+- `acks`
+- `log.flush.interval.messages`
+- `log.flush.interval.ms`
+- `log.flush.*`
+
+Default values for the above options can easily lead to data loss.
+Please refer to the Kafka documentation for more explanation.
+
+### UnknownTopicOrPartitionException
+
+One possible cause of this error is when a new leader election is taking place,
+for example after or during restarting a Kafka broker.
+This is a retriable exception, so Flink job should be able to restart and resume normal operation.
+It also can be circumvented by changing `retries` property in the producer settings.
+However this might cause reordering of messages,
+which in turn if undesired can be circumvented by setting `max.in.flight.requests.per.connection` to 1.
 
 {% top %}
